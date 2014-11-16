@@ -17,6 +17,8 @@ from os.path import expanduser
 
 import six, shutil, platform
 
+cert_path = None
+shouldRun = 1
 
 class SmartFormatter(argparse.HelpFormatter):
 
@@ -93,8 +95,10 @@ class Farmer(object):
         :param args: the arguments from the command line
         """
         
-        if not self.cert_path:
+        if not cert_path:
             self.cert_path = resource_path('ca-bundle.crt')
+        else:
+            self.cert_path = cert_path
 
         self.load_number(args)
 
@@ -252,7 +256,7 @@ class Farmer(object):
 
         client.set_cert_path(self.cert_path)
 
-        while (1):
+        while (shouldRun):
             try:
                 client.connect()
 
