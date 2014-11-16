@@ -9,6 +9,7 @@ from RandomIO import RandomIO
 from .utils import handle_json_response
 from .exc import DownstreamError
 
+heartbeats = 0
 
 class DownstreamContract(object):
 
@@ -131,3 +132,6 @@ class DownstreamContract(object):
             raise DownstreamError('Challenge response rejected.')
 
         self.answered = True
+        
+        global heartbeats
+        heartbeats += 1
