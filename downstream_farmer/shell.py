@@ -300,6 +300,10 @@ def eval_args(args):
 
 
 def parse_args():
+    """
+        Check if appdata folder exists, if not create. AppData will be used to save identities and settings files.
+        You can set custom history path in settings.json
+    """
     drivesharedir = None
 
     os_type = platform.system()
@@ -329,8 +333,6 @@ def parse_args():
 
     with open(os.path.join(drivesharedir, 'settings.json')) as f:
         history_path = os.path.join(json.loads(f.read())["path"], 'history.json')
-
-    print(history_path)
 
     default_size = 100
     default_url = 'https://live.driveshare.org:8443'
