@@ -6,7 +6,6 @@ import os
 import sys
 import argparse
 import json
-import signal
 import time
 import siggy
 
@@ -388,8 +387,5 @@ def parse_args():
 
 
 def main():
-    for sig in [signal.SIGTERM, signal.SIGINT]:
-        signal.signal(sig, handler)
-
     args = parse_args()
     eval_args(args)
