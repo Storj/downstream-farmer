@@ -8,6 +8,7 @@
 ### v0.1.4
 
 * GUI compatible
+* Custom path
 
 ### v0.1.2
 
