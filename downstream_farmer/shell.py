@@ -92,8 +92,9 @@ class Farmer(object):
 
         :param args: the arguments from the command line
         """
-
-        self.cert_path = resource_path('ca-bundle.crt')
+        
+        if not self.cert_path:
+            self.cert_path = resource_path('ca-bundle.crt')
 
         self.load_number(args)
 
