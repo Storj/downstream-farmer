@@ -77,9 +77,9 @@ optional arguments:
                         reset and your token has been deleted, it may be
                         necessary to force your farmer to obtain a new token.
   -i IDENTITY, --identity IDENTITY
-                        Specify an identity file to  provide a signature to
+                        Specify an identity file to provide a signature to
                         prove ownership of your SJCX address. The default path
-                        is data\identities.json.  The file format should be a
+                        is data\identities.json. The file format should be a
                         JSON dictionary like the following:
                         {
                            "your sjcx address": {
