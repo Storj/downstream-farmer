@@ -346,6 +346,15 @@ def parse_args():
     if not os.path.exists(os.path.join(drivesharedir, 'settings.json')):
         shutil.copy2(os.path.join('data', 'settings.json'), os.path.join(drivesharedir, 'settings.json'))
 
+        """
+            Set storage path temporary to appdata
+        """
+        with open(os.path.join(drivesharedir, 'settings.json'), 'w') as f:
+            j = {}
+            j["path"] = drivesharedir
+            
+            f.write(json.dumps(j))
+
     """
         Get path from settings.json and set history path
     """
