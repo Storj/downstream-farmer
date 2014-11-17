@@ -5,6 +5,11 @@
 * [ENHANCEMENT] Switched to changelog methodology
 * [ENHAMCEMENT] Added ability to specify a signature for submission to server for verification of ownership of address
 
+### v0.1.4
+
+* GUI compatible
+* Custom path
+
 ### v0.1.2
 
 * Alpha release with some good test functionality

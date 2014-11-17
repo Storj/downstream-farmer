@@ -6,7 +6,6 @@ import os
 import sys
 import argparse
 import json
-import signal
 import time
 import siggy
 
@@ -14,9 +13,12 @@ from .client import DownstreamClient
 from .version import __version__
 from .exc import DownstreamError
 from .utils import resource_path
+from os.path import expanduser
 
-import six
+import six, shutil, platform
 
+cert_path = None
+shouldRun = 1
 
 class SmartFormatter(argparse.HelpFormatter):
 
@@ -92,8 +94,11 @@ class Farmer(object):
 
         :param args: the arguments from the command line
         """
-
-        self.cert_path = resource_path('ca-bundle.crt')
+        
+        if not cert_path:
+            self.cert_path = resource_path('ca-bundle.crt')
+        else:
+            self.cert_path = cert_path
 
         self.load_number(args)
 
@@ -251,7 +256,7 @@ class Farmer(object):
 
         client.set_cert_path(self.cert_path)
 
-        while (1):
+        while (shouldRun):
             try:
                 client.connect()
 
@@ -300,8 +305,62 @@ def eval_args(args):
 
 
 def parse_args():
-    history_path = os.path.join('data', 'history.json')
-    identity_path = os.path.join('data', 'identities.json')
+    """
+        Check if appdata folder exists, if not create. AppData will be used to save identities and settings files.
+        You can set custom history path in settings.json
+    """
+    drivesharedir = None
+
+    """
+        Detect system type
+    """
+    os_type = platform.system()
+
+    """
+        Create appdata folder by OS type
+    """
+    if os_type == "Windows":
+        appdata = os.getenv('APPDATA')
+        drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+        if not os.path.exists(drivesharedir):
+            os.mkdir(drivesharedir)
+    elif os_type == "Darwin":
+        appdata = expanduser("~/Application Support")
+        drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+        if not os.path.exists(drivesharedir):
+            os.mkdir(drivesharedir)
+    else:
+        appdata = expanduser("~")
+        drivesharedir = os.path.realpath("%s/.driveshare" % appdata)
+        if not os.path.exists(drivesharedir):
+            os.mkdir(drivesharedir)
+
+    identity_path = os.path.join(drivesharedir, 'identities.json')
+
+    """
+        Copy data files to appdata
+    """
+    if not os.path.exists(identity_path):
+        shutil.copy2(os.path.join('data', 'identities.json'), identity_path)
+
+    if not os.path.exists(os.path.join(drivesharedir, 'settings.json')):
+        shutil.copy2(os.path.join('data', 'settings.json'), os.path.join(drivesharedir, 'settings.json'))
+
+        """
+            Set storage path temporary to appdata
+        """
+        with open(os.path.join(drivesharedir, 'settings.json'), 'w') as f:
+            j = {}
+            j["path"] = drivesharedir
+            
+            f.write(json.dumps(j))
+
+    """
+        Get path from settings.json and set history path
+    """
+    with open(os.path.join(drivesharedir, 'settings.json')) as f:
+        history_path = os.path.join(json.loads(f.read())["path"], 'history.json')
+
     default_size = 100
     default_url = 'https://live.driveshare.org:8443'
     parser = argparse.ArgumentParser(
@@ -357,8 +416,5 @@ def parse_args():
 
 
 def main():
-    for sig in [signal.SIGTERM, signal.SIGINT]:
-        signal.signal(sig, handler)
-
     args = parse_args()
     eval_args(args)

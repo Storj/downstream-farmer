@@ -19,7 +19,7 @@ heartbeat_types = {'Swizzle': heartbeat.Swizzle.Swizzle,
                    'Merkle': heartbeat.Merkle.Merkle}
 
 api_prefix = '/api/downstream/v1'
-
+contracts = 0
 
 class DownstreamClient(object):
 
@@ -125,6 +125,9 @@ class DownstreamClient(object):
             self.heartbeat.challenge_type().fromdict(r_json['challenge']),
             datetime.utcnow() + timedelta(seconds=int(r_json['due'])),
             self.heartbeat.tag_type().fromdict(r_json['tag']))
+            
+        global contracts
+        contracts += 1
 
         contract.set_cert_path(self.cert_path)
 
