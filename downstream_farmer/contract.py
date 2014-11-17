@@ -9,7 +9,6 @@ from RandomIO import RandomIO
 from .utils import handle_json_response
 from .exc import DownstreamError
 
-
 class DownstreamContract(object):
 
     def __init__(self, client, hash, seed, size, challenge, expiration, tag):
