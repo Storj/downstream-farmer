@@ -311,7 +311,14 @@ def parse_args():
     """
     drivesharedir = None
 
+    """
+        Detect system type
+    """
     os_type = platform.system()
+
+    """
+        Create appdata folder by OS type
+    """
     if os_type == "Windows":
         appdata = os.getenv('APPDATA')
         drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
@@ -330,12 +337,18 @@ def parse_args():
 
     identity_path = os.path.join(drivesharedir, 'identities.json')
 
+    """
+        Copy data files to appdata
+    """
     if not os.path.exists(identity_path):
         shutil.copy2(os.path.join('data', 'identities.json'), identity_path)
 
     if not os.path.exists(os.path.join(drivesharedir, 'settings.json')):
         shutil.copy2(os.path.join('data', 'settings.json'), os.path.join(drivesharedir, 'settings.json'))
 
+    """
+        Get path from settings.json and set history path
+    """
     with open(os.path.join(drivesharedir, 'settings.json')) as f:
         history_path = os.path.join(json.loads(f.read())["path"], 'history.json')
 
