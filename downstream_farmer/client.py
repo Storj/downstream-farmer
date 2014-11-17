@@ -20,6 +20,24 @@ heartbeat_types = {'Swizzle': heartbeat.Swizzle.Swizzle,
 
 api_prefix = '/api/downstream/v1'
 
+heartbeat_count = 0
+contract_count = 0
+
+def getHeartbeats():
+    global heartbeat_count
+    return heartbeat_count
+
+def setHeartbeats(count):
+    global heartbeat_count
+    heartbeat_count = int(count)
+
+def getContracts():
+    global contract_count
+    return contract_count
+
+def setContracts(count):
+    global contract_count
+    contract_count = int(count)
 
 class DownstreamClient(object):
 
@@ -130,6 +148,10 @@ class DownstreamClient(object):
 
         self.contracts.append(contract)
 
+        contracts_tmp = getContracts()
+        contracts_tmp += 1
+        setContracts(contracts_tmp)
+
         print('Got chunk contract for file hash {0}'.format(contract.hash))
 
         print('Total size now {0}'.format(self.get_total_size()))
@@ -203,6 +225,10 @@ class DownstreamClient(object):
             print('Answering challenge.')
             try:
                 next_contract.answer_challenge()
+                
+                heartbeats_tmp = getHeartbeats()
+                heartbeats_tmp += 1
+                setHeartbeats(heartbeats_tmp)
             except DownstreamError as ex:
                 # challenge answer failed, remove this contract
                 print('Challenge answer failed: {0}, dropping contract {1}'.

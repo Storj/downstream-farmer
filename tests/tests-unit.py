@@ -13,7 +13,11 @@ from six.moves.urllib.error import URLError
 
 import mock
 import requests
+import os
+import platform
 from datetime import datetime, timedelta
+from os.path import expanduser
+import shutil
 
 from downstream_farmer import utils, shell
 from downstream_farmer.shell import Farmer, save, restore
@@ -21,6 +25,22 @@ from downstream_farmer.client import DownstreamClient, DownstreamContract
 from downstream_farmer.exc import DownstreamError
 from heartbeat import Heartbeat
 
+os_type = platform.system()
+if os_type == "Windows":
+    appdata = os.getenv('APPDATA')
+    drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+    if not os.path.exists(drivesharedir):
+        os.mkdir(drivesharedir)
+elif os_type == "Darwin":
+    appdata = expanduser("~/Application Support")
+    drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+    if not os.path.exists(drivesharedir):
+        os.mkdir(drivesharedir)
+else:
+    appdata = expanduser("~")
+    drivesharedir = os.path.realpath("%s/.driveshare" % appdata)
+    if not os.path.exists(drivesharedir):
+        os.mkdir(drivesharedir)
 
 class TestUtils(unittest.TestCase):
     def test_urlify(self):
@@ -468,6 +488,8 @@ class MockRaiseOnFirstCall(object):
             raise self.error
 
 class TestShell(unittest.TestCase):
+    drivesharedir = None
+
     def setUp(self):
         self._old_argv = sys.argv
         sys.argv = [
@@ -486,6 +508,9 @@ class TestShell(unittest.TestCase):
 
     def tearDown(self):
         sys.argv = self._old_argv
+        
+        global drivesharedir
+        shutil.rmtree(drivesharedir, ignore_errors=True)
 
     def test_fail_exit(self):
         with self.assertRaises(SystemExit):
@@ -818,7 +843,37 @@ class TestShell(unittest.TestCase):
     
     def test_parse_args_history_default(self):
         args = shell.parse_args()
-        self.assertEqual(args.history, os.path.join('data','history.json'))
+        global drivesharedir
+
+        os_type = platform.system()
+        if os_type == "Windows":
+            appdata = os.getenv('APPDATA')
+            drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+            if not os.path.exists(drivesharedir):
+                os.mkdir(drivesharedir)
+        elif os_type == "Darwin":
+            appdata = expanduser("~/Application Support")
+            drivesharedir = os.path.realpath("%s/DriveShare" % appdata)
+            if not os.path.exists(drivesharedir):
+                os.mkdir(drivesharedir)
+        else:
+            appdata = expanduser("~")
+            drivesharedir = os.path.realpath("%s/.driveshare" % appdata)
+            if not os.path.exists(drivesharedir):
+                os.mkdir(drivesharedir)
+
+        if not os.path.exists(os.path.join(drivesharedir, 'settings.json')):
+            shutil.copy2(os.path.join('data', 'settings.json'), os.path.join(drivesharedir, 'settings.json'))
+            with open(os.path.join(drivesharedir, 'settings.json'), 'w') as f:
+                j = {}
+                j["path"] = drivesharedir
+                
+                f.write(json.dumps(j))
+
+        with open(os.path.join(drivesharedir, 'settings.json')) as f:
+            history_path = os.path.join(json.loads(f.read())["path"], 'history.json')
+
+        self.assertEqual(args.history, history_path)
         
     def test_parse_args_size(self):        
         sys.argv.append('--size')
