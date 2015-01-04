@@ -14,7 +14,7 @@ import mock
 from datetime import datetime, timedelta
 
 from downstream_farmer import utils, shell
-from downstream_farmer.shell import Farmer, save, restore
+from downstream_farmer.shell import Farmer, save, restore, API
 from downstream_farmer.client import DownstreamClient, DownstreamContract
 from downstream_farmer.exc import DownstreamError
 from heartbeat import Heartbeat
@@ -59,13 +59,15 @@ class TestContract(unittest.TestCase):
         self.expiration = datetime.utcnow(
         ) + timedelta(int(MockValues.get_chunk_response['due']))
         self.client = mock.MagicMock()
+        self.api = API()
         self.contract = DownstreamContract(self.client,
                                            'hash',
                                            'seed',
                                            100,
                                            self.challenge,
                                            self.expiration,
-                                           self.tag)
+                                           self.tag,
+                                           self.api)
 
     def tearDown(self):
         pass
@@ -157,6 +159,7 @@ class TestContract(unittest.TestCase):
     def test_update_challenge_working(self):
         self.contract.answered = True
         self.client.heartbeat = self.heartbeat
+        self.api = API()
         self.contract.time_remaining = mock.MagicMock()
         self.contract.time_remaining.return_value = 0
         with mock.patch('downstream_farmer.contract.requests.get') as getpatch:
@@ -166,7 +169,8 @@ class TestContract(unittest.TestCase):
             self.assertEqual(self.contract.challenge,
                              Heartbeat.challenge_type().fromdict(
                                  MockValues
-                                 .get_challenge_response['challenge']))
+                                 .get_challenge_response['challenge']),
+                             self.api)
             self.assertAlmostEqual((self.
                                     contract.expiration - datetime.utcnow()).
                                    total_seconds(),
@@ -235,12 +239,14 @@ class TestClient(unittest.TestCase):
         self.token = binascii.hexlify(os.urandom(16)).decode('ascii')
         self.msg = ''
         self.sig = ''
+        self.api = API()
         self.client = DownstreamClient(self.server_url,
                                        self.token,
                                        self.address,
                                        self.size,
                                        self.msg,
-                                       self.sig)
+                                       self.sig,
+                                       self.api)
         self.test_contract = DownstreamContract(self.client,
                                                 MockValues.get_chunk_response[
                                                     'file_hash'],
@@ -263,7 +269,9 @@ class TestClient(unittest.TestCase):
                                                 Heartbeat.tag_type().fromdict(
                                                     MockValues
                                                     .get_chunk_response['ta'
-                                                                        'g']))
+                                                                        'g'],
+                                                ),
+                                                self.api)
         self.test_heartbeat = Heartbeat.fromdict(
             MockValues.connect_response['heartbeat'])
 
@@ -360,7 +368,7 @@ class TestClient(unittest.TestCase):
                                      "signature": self.client.sig
                                  }),
                                  headers={
-            'Content-Type': 'application/json'
+                                     'Content-Type': 'application/json'
         },
             verify=None)
         self.assertEqual(
@@ -430,6 +438,7 @@ class TestClient(unittest.TestCase):
         client = mock.MagicMock(spec=DownstreamClient)
         client.get_total_size.return_value = 0
         client.desired_size = 100
+        client.api = API()
 
         client.get_chunk.side_effect = DownstreamError('test error')
         client.contracts = []
@@ -442,12 +451,16 @@ class TestClient(unittest.TestCase):
         client = mock.MagicMock(spec=DownstreamClient)
         client.get_total_size.return_value = 0
         client.desired_size = 100
+        client.api = API()
+
         contract = mock.MagicMock(spec=DownstreamContract)
         contract.time_remaining.return_value = 0
         contract.hash = '1'
+        contract.api = client.api
 
         def patch_get_chunk(size):
-            client.get_total_size.return_value = client.get_total_size.return_value + \
+            client.get_total_size.return_value = \
+                client.get_total_size.return_value + \
                 size
             client.contracts = [contract]
 
@@ -462,12 +475,16 @@ class TestClient(unittest.TestCase):
         client = mock.MagicMock(spec=DownstreamClient)
         client.get_total_size.return_value = 0
         client.desired_size = 100
+        client.api = API()
+
         contract = mock.MagicMock(spec=DownstreamContract)
         contract.time_remaining.return_value = 1
         contract.hash = '1'
+        contract.api = client.api
 
         def patch_get_chunk(size):
-            client.get_total_size.return_value = client.get_total_size.return_value + \
+            client.get_total_size.return_value = \
+                client.get_total_size.return_value + \
                 size
             client.contracts = [contract]
 
@@ -484,9 +501,13 @@ class TestClient(unittest.TestCase):
         client = mock.MagicMock(spec=DownstreamClient)
         client.get_total_size.return_value = 100
         client.desired_size = 100
+        client.api = API()
+
         contract = mock.MagicMock(spec=DownstreamContract)
         contract.time_remaining.return_value = 0
         contract.hash = '1'
+        contract.api = client.api
+
         client.contracts = mock.MagicMock()
         client.contracts.remove = mock.MagicMock()
 
@@ -499,9 +520,13 @@ class TestClient(unittest.TestCase):
         client = mock.MagicMock(spec=DownstreamClient)
         client.get_total_size.return_value = 100
         client.desired_size = 100
+        client.api = API()
+
         contract = mock.MagicMock(spec=DownstreamContract)
         contract.time_remaining.return_value = 0
         contract.hash = '1'
+        contract.api = client.api
+
         client.contracts = mock.MagicMock()
         client.contracts.remove = mock.MagicMock()
 
@@ -556,6 +581,7 @@ class TestShell(unittest.TestCase):
         self.test_args.history = 'historyfile'
         self.test_args.forcenew = False
         self.test_args.identity = 'identityfile'
+        self.test_args.api = API()
 
     def tearDown(self):
         sys.argv = self._old_argv
@@ -567,6 +593,34 @@ class TestShell(unittest.TestCase):
     def test_handler(self):
         with self.assertRaises(SystemExit):
             shell.handler()
+
+    def test_api_start(self):
+        api = API()
+        api.start()
+        self.assertEqual(api.running, 1)
+
+    def test_api_stop(self):
+        api = API()
+        api.stop()
+        self.assertEqual(api.running, 0)
+
+    def test_api_plus_heartbeats(self):
+        api = API()
+        api.plus_heartbeats(1)
+        self.assertEqual(api.heartbeats, 1)
+
+    def test_api_retrieve_heartbeats(self):
+        api = API()
+        self.assertEqual(api.heartbeats, 0)
+
+    def test_api_plus_contracts(self):
+        api = API()
+        api.plus_contracts(1)
+        self.assertEqual(api.contracts, 1)
+
+    def test_api_retrieve_contracts(self):
+        api = API()
+        self.assertEqual(api.contracts, 0)
 
     def test_farmer_init_number_invalid(self):
         self.test_args.number = -1
@@ -584,7 +638,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_forcenew(self):
         self.test_args.forcenew = True
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -594,7 +649,8 @@ class TestShell(unittest.TestCase):
     def test_farmer_init_no_token_no_address(self):
         self.test_args.token = None
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'),\
                 self.assertRaises(DownstreamError) as ex:
             r.side_effect = MockRestore(
@@ -606,7 +662,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_url(self):
         self.test_args.node_url = 'testurl'
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -617,7 +674,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_url_from_state(self):
         self.test_args.node_url = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': {'last_node': 'stateurl'},
@@ -627,7 +685,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_url_default(self):
         self.test_args.node_url = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -636,7 +695,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_token(self):
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -645,7 +705,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_token_from_state(self):
         self.test_args.token = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore({
                 'historyfile': {
@@ -662,7 +723,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_token_default(self):
         self.test_args.token = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -670,7 +732,8 @@ class TestShell(unittest.TestCase):
             self.assertEqual(farmer.token, None)
 
     def test_farmer_init_address(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -679,7 +742,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_address_from_state(self):
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore({'historyfile': {
                 'nodes': {
@@ -694,7 +758,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_address_default(self):
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
@@ -703,7 +768,8 @@ class TestShell(unittest.TestCase):
 
     def test_farmer_init_address_from_identities(self):
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore({'historyfile': dict(),
                                          'identityfile':
@@ -720,7 +786,8 @@ class TestShell(unittest.TestCase):
     def test_farmer_load_signature_invalid_dict(self):
         self.test_args.token = None
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'):
             r.side_effect = MockRestore({'historyfile': dict(),
                                          'identityfile':
@@ -743,9 +810,11 @@ class TestShell(unittest.TestCase):
     def test_farmer_load_signature_invalid_sig(self):
         self.test_args.token = None
         self.test_args.address = None
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
                 mock.patch.object(Farmer, 'check_connectivity'),\
-                mock.patch('siggy.verify_signature') as s:
+                mock.patch(
+                    'siggy.verify_signature') as s:
             s.return_value = False
             r.side_effect = MockRestore({'historyfile': dict(),
                                          'identityfile':
@@ -760,8 +829,10 @@ class TestShell(unittest.TestCase):
                              ' try again.')
 
     def test_farmer_load_signature_none(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
-                mock.patch.object(Farmer, 'check_connectivity'):
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
+                mock.patch.object(
+                    Farmer, 'check_connectivity'):
             r.side_effect = MockRestore({'historyfile': dict(),
                                          'identityfile':
                                          {'identityaddress':
@@ -816,8 +887,10 @@ class TestShell(unittest.TestCase):
         os.remove(path)
 
     def test_farmer_check_connectivity(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
-                mock.patch('six.moves.urllib.request.urlopen') as patch:
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
+                mock.patch(
+                    'six.moves.urllib.request.urlopen') as patch:
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
             farmer = Farmer(self.test_args)
@@ -830,18 +903,24 @@ class TestShell(unittest.TestCase):
             self.assertTrue(patch.called)
 
     def test_farmer_run(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
-                mock.patch('six.moves.urllib.request.urlopen') as patch:
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
+                mock.patch(
+                    'six.moves.urllib.request.urlopen') as patch:
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
             farmer = Farmer(self.test_args)
-        with mock.patch('downstream_farmer.shell.DownstreamClient') as patch,\
-                mock.patch('downstream_farmer.shell.save', autospec=True) as s:
+            farmer.api = API()
+        with mock.patch(
+            'downstream_farmer.shell.DownstreamClient') as patch,\
+                mock.patch(
+                    'downstream_farmer.shell.save', autospec=True) as s:
             patch.return_value.token = 'foo'
             patch.return_value.address = 'bar'
             farmer.run()
             patch.assert_called_with(
-                farmer.url, farmer.token, farmer.address, farmer.size, '', '')
+                farmer.url, farmer.token, farmer.address, farmer.size, '', '',
+                farmer.api)
             self.assertTrue(patch.return_value.connect.called)
             self.assertEqual(farmer
                              .state['nodes'][patch.return_value
@@ -855,13 +934,17 @@ class TestShell(unittest.TestCase):
             patch.return_value.run.assert_called_with(farmer.number)
 
     def test_farmer_run_no_reconnect(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
-                mock.patch('six.moves.urllib.request.urlopen') as patch:
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
+                mock.patch(
+                    'six.moves.urllib.request.urlopen') as patch:
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
             farmer = Farmer(self.test_args)
-        with mock.patch('downstream_farmer.shell.DownstreamClient') as patch,\
-                mock.patch('downstream_farmer.shell.save', autospec=True):
+        with mock.patch(
+            'downstream_farmer.shell.DownstreamClient') as patch,\
+                mock.patch(
+                    'downstream_farmer.shell.save', autospec=True):
             patch.return_value.run.side_effect = MockRaiseOnFirstCall(
                 DownstreamError('first error'))
             with self.assertRaises(DownstreamError) as ex:
@@ -869,8 +952,10 @@ class TestShell(unittest.TestCase):
             self.assertEqual(str(ex.exception), 'first error')
 
     def test_farmer_run_reconnect(self):
-        with mock.patch('downstream_farmer.shell.restore', autospec=True) as r,\
-                mock.patch('six.moves.urllib.request.urlopen') as patch:
+        with mock.patch(
+            'downstream_farmer.shell.restore', autospec=True) as r,\
+                mock.patch(
+                    'six.moves.urllib.request.urlopen') as patch:
             r.side_effect = MockRestore(
                 {'historyfile': dict(), 'identityfile': dict()})
             farmer = Farmer(self.test_args)

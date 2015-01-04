@@ -12,7 +12,8 @@ from .exc import DownstreamError
 
 class DownstreamContract(object):
 
-    def __init__(self, client, hash, seed, size, challenge, expiration, tag):
+    def __init__(self, client, hash, seed, size, challenge, expiration, tag,
+                 api):
         self.hash = hash
         self.seed = seed
         self.size = size
@@ -21,6 +22,7 @@ class DownstreamContract(object):
         self.tag = tag
         self.client = client
         self.answered = False
+        api.plus_contracts(1)
 
     def time_remaining(self):
         """Returns the amount of time until this challenge

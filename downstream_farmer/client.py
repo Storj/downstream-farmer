@@ -23,7 +23,7 @@ api_prefix = '/api/downstream/v1'
 
 class DownstreamClient(object):
 
-    def __init__(self, url, token, address, size, msg, sig):
+    def __init__(self, url, token, address, size, msg, sig, api):
         self.server = url.strip('/')
         self.api_url = self.server + api_prefix
         self.token = token
@@ -36,6 +36,7 @@ class DownstreamClient(object):
         self.cert_path = None
         self.verify_cert = True
         self._set_requests_verify_arg()
+        self.api = api
 
     def set_cert_path(self, cert_path):
         """Sets the path of a CA-Bundle to use for verifying requests
@@ -143,7 +144,7 @@ class DownstreamClient(object):
             r_json['size'],
             self.heartbeat.challenge_type().fromdict(r_json['challenge']),
             datetime.utcnow() + timedelta(seconds=int(r_json['due'])),
-            self.heartbeat.tag_type().fromdict(r_json['tag']))
+            self.heartbeat.tag_type().fromdict(r_json['tag']), self.api)
 
         self.contracts.append(contract)
 
@@ -176,7 +177,7 @@ class DownstreamClient(object):
         """Updates and answers challenges for all contracts.
         """
         i = 0
-        while (number is None or i < number):
+        while (number is None or i < number and self.api.running is 1):
             i += 1
             # ensure that we have contracts
             try:
@@ -215,6 +216,8 @@ class DownstreamClient(object):
                       format(str(ex), next_contract.hash))
                 self.contracts.remove(next_contract)
                 continue
+
+            self.api.plus_heartbeats(1)
 
             # answer the challenge
             print('Answering challenge.')
